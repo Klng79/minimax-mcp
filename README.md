@@ -39,6 +39,50 @@ export MINIMAX_API_KEY="your_api_key_here"
 
 Or add it to your shell profile (`~/.zshrc` or `~/.bashrc`) for persistence.
 
+### Windows Installation
+
+On Windows, the steps are similar but paths and commands differ slightly.
+
+**1. Install dependencies**
+
+```cmd
+pip install -r requirements.txt
+```
+
+**2. Set your API key**
+
+Set the `MINIMAX_API_KEY` environment variable via Command Prompt or PowerShell:
+
+```cmd
+set MINIMAX_API_KEY=your_api_key_here
+```
+
+Or set it permanently via **System Properties → Environment Variables**.
+
+**3. Add to Claude Code**
+
+Open `%APPDATA%\Claude\settings.json` in a text editor and add:
+
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python",
+      "args": ["C:\\path\\to\\minimax-mcp\\minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+> **Note:** Use `python` instead of `python3` on Windows.
+
+**4. Restart Claude Code**
+
+After updating settings, restart Claude Code to load the new MCP server.
+
 ## Usage
 
 ### Claude Code Integration
@@ -153,6 +197,42 @@ For Claude Desktop App, add to `~/Library/Application Support/Claude/claude_desk
 - **Never commit your API key** to version control
 - Use environment variables to pass sensitive credentials
 - The server reads `MINIMAX_API_KEY` from the environment, never from config files in the repo
+
+### Claude Desktop App
+
+**macOS:**
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python3",
+      "args": ["/absolute/path/to/minimax-mcp/minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+**Windows:**
+Add to `%APPDATA%\Claude\claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python",
+      "args": ["C:\\path\\to\\minimax-mcp\\minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
 
 ## License
 

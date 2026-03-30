@@ -28,7 +28,7 @@ Generate images from text descriptions.
 
 ### 1. Install dependencies
 ```bash
-cd /Users/alexng/Desktop/Developer/mypanuc/minimax-mcp
+cd /path/to/minimax-mcp
 pip install -r requirements.txt
 ```
 
@@ -41,6 +41,39 @@ export MINIMAX_API_KEY="your_api_key_here"
 
 Or add it to your shell profile (`~/.zshrc` or `~/.bashrc`).
 
+### Windows Installation
+
+On Windows, use the same pip command but set the environment variable differently:
+
+**1. Install dependencies**
+```cmd
+pip install -r requirements.txt
+```
+
+**2. Set your API key**
+```cmd
+set MINIMAX_API_KEY=your_api_key_here
+```
+Or set permanently via **System Properties → Environment Variables**.
+
+**3. Add to Claude Code**
+Edit `%APPDATA%\Claude\settings.json` and add:
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python",
+      "args": ["C:\\path\\to\\minimax-mcp\\minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+> **Note:** Use `python` instead of `python3` on Windows.
+
 ### 3. Use with Claude Code
 
 Add to your Claude Code configuration in `~/.claude/settings.json`:
@@ -50,7 +83,7 @@ Add to your Claude Code configuration in `~/.claude/settings.json`:
   "mcpServers": {
     "minimax": {
       "command": "python3",
-      "args": ["/Users/alexng/Desktop/Developer/mypanuc/minimax-mcp/minimax_mcp.py"],
+      "args": ["/absolute/path/to/minimax-mcp/minimax_mcp.py"],
       "env": {
         "MINIMAX_API_KEY": "your_api_key_here"
       }
@@ -65,7 +98,7 @@ Or use via uvx (requires Python 3.11+):
   "mcpServers": {
     "minimax": {
       "command": "uvx",
-      "args": ["/Users/alexng/Desktop/Developer/mypanuc/minimax-mcp/minimax_mcp.py"]
+      "args": ["/absolute/path/to/minimax-mcp/minimax_mcp.py"]
     }
   }
 }
