@@ -10,10 +10,15 @@ import os
 import json
 import time
 import tempfile
+import logging
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import httpx
+
+# Disable httpx logging to keep stderr clean for MCP protocol
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 from mcp.server.fastmcp import FastMCP
 
