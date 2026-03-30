@@ -185,6 +185,10 @@ class ImageGenerationInput(BaseModel):
         ge=1,
         le=9
     )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
+    )
 
     @field_validator('prompt')
     @classmethod
@@ -240,7 +244,7 @@ async def _make_api_request(
     api_key = _get_api_key()
     url = f"{API_HOST}{endpoint}"
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -557,7 +561,7 @@ async def minimax_text_to_speech(params: TextToSpeechInput) -> str:
         api_key = _get_api_key()
         url = f"{API_HOST}/v1/t2a_v2"
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
@@ -656,7 +660,9 @@ async def minimax_generate_image(params: ImageGenerationInput) -> str:
             }
         )
 
-        images = data.get("data", [])
+        # Response structure: {"data": {"image_urls": [...]}}
+        image_data = data.get("data", {})
+        images = image_data.get("image_urls", []) if isinstance(image_data, dict) else image_data
         if not images:
             return "Error: No images were generated"
 
@@ -666,7 +672,8 @@ async def minimax_generate_image(params: ImageGenerationInput) -> str:
             if isinstance(img, dict):
                 url = img.get("url", "")
             else:
-                url = img
+                # img is already a string URL
+                url = str(img) if img else ""
             if url:
                 urls.append(url)
 
