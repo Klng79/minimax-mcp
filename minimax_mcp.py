@@ -649,8 +649,8 @@ async def minimax_generate_image(params: ImageGenerationInput) -> str:
     """Generate images from text descriptions using MiniMax's image generation model.
 
     This tool creates images based on textual prompts. Be descriptive and
-    specific for best results. Generated images are returned as URLs that
-    expire after 24 hours.
+    specific for best results. Generated images are downloaded to local files
+    and returned as local paths.
 
     Args:
         params (ImageGenerationInput): Validated input parameters containing:
@@ -659,7 +659,7 @@ async def minimax_generate_image(params: ImageGenerationInput) -> str:
             - n (int): Number of images to generate (1-9)
 
     Returns:
-        str: Generated image URL(s) in the requested format.
+        str: Generated image file path(s) in the requested format.
 
     Examples:
         - Use when: "Generate an image of a sunset over mountains"
@@ -696,25 +696,68 @@ async def minimax_generate_image(params: ImageGenerationInput) -> str:
             if url:
                 urls.append(url)
 
+        # Download images to local files
+        temp_dir = tempfile.mkdtemp(prefix="minimax_img_")
+        local_paths = []
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for i, url in enumerate(urls, 1):
+                try:
+                    response = await client.get(url)
+                    response.raise_for_status()
+
+                    # Determine file extension from content type or URL
+                    content_type = response.headers.get("content-type", "")
+                    if "jpeg" in content_type or "jpg" in content_type:
+                        ext = "jpg"
+                    elif "png" in content_type:
+                        ext = "png"
+                    elif "webp" in content_type:
+                        ext = "webp"
+                    else:
+                        # Try to guess from URL
+                        if ".jpg" in url.lower():
+                            ext = "jpg"
+                        elif ".png" in url.lower():
+                            ext = "png"
+                        elif ".webp" in url.lower():
+                            ext = "webp"
+                        else:
+                            ext = "jpg"  # Default to jpg
+
+                    filename = f"image_{i}_{int(time.time())}.{ext}"
+                    filepath = os.path.join(temp_dir, filename)
+
+                    with open(filepath, "wb") as f:
+                        f.write(response.content)
+
+                    local_paths.append(filepath)
+                except Exception as e:
+                    # If download fails for one image, continue with others
+                    continue
+
+        if not local_paths:
+            return "Error: Failed to download any images"
+
         if params.response_format == ResponseFormat.JSON:
             return json.dumps({
                 "prompt": params.prompt,
                 "aspect_ratio": params.aspect_ratio.value,
-                "images": [{"url": u} for u in urls]
+                "images": [{"local_path": p} for p in local_paths]
             }, indent=2)
         else:
             lines = [f"# Generated Image(s)", ""]
             lines.append(f"**Prompt:** {params.prompt}")
             lines.append(f"**Aspect Ratio:** {params.aspect_ratio.value}")
-            lines.append(f"**Count:** {len(urls)}")
+            lines.append(f"**Count:** {len(local_paths)}")
             lines.append("")
-            lines.append("## Image URLs (expire in 24 hours)")
+            lines.append("## Local Image Files")
             lines.append("")
-            for i, url in enumerate(urls, 1):
-                lines.append(f"{i}. {url}")
+            for i, path in enumerate(local_paths, 1):
+                lines.append(f"{i}. {path}")
             lines.append("")
             lines.append("---")
-            lines.append("*Note: URLs expire after 24 hours. Download images if you need to preserve them.*")
+            lines.append(f"*Images saved in: {temp_dir}*")
             return "\n".join(lines)
 
     except Exception as e:
