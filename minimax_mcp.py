@@ -304,6 +304,7 @@ async def minimax_web_search(params: WebSearchInput) -> str:
         import subprocess
         import sys
 
+        api_key = _get_api_key()
         query_json = json.dumps(params.query)
         rpc_request = {
             "jsonrpc": "2.0",
@@ -327,30 +328,36 @@ async def minimax_web_search(params: WebSearchInput) -> str:
         }
 
         # Run the MiniMax MCP server and communicate via JSON-RPC
+        # Pass API key and host to subprocess so minimax-coding-plan-mcp can authenticate
+        env = dict(os.environ)
+        env["MINIMAX_API_KEY"] = api_key
+        env["MINIMAX_API_HOST"] = API_HOST
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "uvx", "minimax-coding-plan-mcp",
+            "uvx", "minimax-coding-plan-mcp",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            env=env
         )
 
         # Send initialize
         init_data = json.dumps(initialize_request) + "\n"
-        await process.stdin.write(init_data.encode())
+        process.stdin.write(init_data.encode())
         await process.stdin.drain()
         await asyncio.sleep(1)
 
         # Send search request
         req_data = json.dumps(rpc_request) + "\n"
-        await process.stdin.write(req_data.encode())
+        process.stdin.write(req_data.encode())
         await process.stdin.drain()
         await asyncio.sleep(4)
 
-        # Read response
+        # Close stdin to signal we're done sending, then read response
+        process.stdin.close()
         try:
             stdout_data, stderr_data = await asyncio.wait_for(
                 process.communicate(),
-                timeout=2.0
+                timeout=5.0
             )
         except asyncio.TimeoutError:
             process.kill()
@@ -454,6 +461,8 @@ async def minimax_understand_image(params: UnderstandImageInput) -> str:
         import subprocess
         import sys
 
+        api_key = _get_api_key()
+
         prompt_json = json.dumps(params.prompt)
         image_json = json.dumps(params.image_source)
 
@@ -478,20 +487,25 @@ async def minimax_understand_image(params: UnderstandImageInput) -> str:
             "id": 0
         }
 
+        # Pass API key and host to subprocess so minimax-coding-plan-mcp can authenticate
+        env = dict(os.environ)
+        env["MINIMAX_API_KEY"] = api_key
+        env["MINIMAX_API_HOST"] = API_HOST
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "uvx", "minimax-coding-plan-mcp",
+            "uvx", "minimax-coding-plan-mcp",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            env=env
         )
 
         init_data = json.dumps(initialize_request) + "\n"
-        await process.stdin.write(init_data.encode())
+        process.stdin.write(init_data.encode())
         await process.stdin.drain()
         await asyncio.sleep(1)
 
         req_data = json.dumps(rpc_request) + "\n"
-        await process.stdin.write(req_data.encode())
+        process.stdin.write(req_data.encode())
         await process.stdin.drain()
         await asyncio.sleep(5)
 
