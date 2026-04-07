@@ -10,19 +10,21 @@ Search the web using MiniMax's search API.
 - **Returns:** Search results with titles, snippets, and links
 
 ### minimax_understand_image
-Analyze images using MiniMax's vision model.
+Analyze images using MiniMax's vision model. Calls `/v1/coding_plan/vlm` directly via HTTP — no subprocess, no external dependencies.
 - **Parameters:** `prompt` (string), `image_source` (URL or local path), `response_format`
 - **Returns:** Detailed image analysis
+- **Supported formats:** JPEG, PNG, WebP
 
 ### minimax_text_to_speech
 Generate speech audio from text.
 - **Parameters:** `text` (string, max 5000), `voice_id` (enum), `speed` (0.5-2.0)
 - **Returns:** Path to generated MP3 file
+- **Recommended voice:** `English_expressive_narrator` (others may not be available on all plans)
 
 ### minimax_generate_image
 Generate images from text descriptions.
 - **Parameters:** `prompt` (string, max 1500), `aspect_ratio` (enum), `n` (1-9)
-- **Returns:** Image URL(s) (valid for 24 hours)
+- **Returns:** Local path(s) to generated image file(s)
 
 ## Setup
 
@@ -108,14 +110,43 @@ Or use via uvx (requires Python 3.11+):
 
 After updating settings, restart Claude Code to load the new MCP server.
 
+## Hermes / mcporter Integration
+
+The server is auto-discovered by Hermes's `mcporter` CLI once configured in `~/.claude.json` or OpenClaw config (same JSON structure as Claude Code above).
+
+```bash
+# List tools
+mcporter list minimax --schema
+
+# Web search
+mcporter call minimax.minimax_web_search query="MiniMax AI API" --output json
+
+# Image understanding (can be slow — set timeout explicitly)
+MCPORTER_CALL_TIMEOUT=120000 mcporter call minimax.minimax_understand_image \
+  params='{"prompt": "What is in this image?", "image_source": "https://example.com/photo.jpg"}' \
+  --output json
+
+# Text-to-speech
+mcporter call minimax.minimax_text_to_speech \
+  params='{"text": "Hello world", "voice_id": "English_expressive_narrator"}' --output json
+
+# Image generation
+mcporter call minimax.minimax_generate_image \
+  params='{"prompt": "A sunset over the ocean", "aspect_ratio": "16:9"}' --output json
+```
+
+> **Important:** `minimax_understand_image` requires downloading the image and converting it to base64 before sending to the API. Default mcporter timeouts (60s) may not be enough. Use `MCPORTER_CALL_TIMEOUT=120000` (2 minutes) for this tool.
+
 ## Available Voice IDs for TTS
 
-- `English_expressive_narrator` (default)
-- `Male_Narrator`
-- `Female_Narrator`
-- `english_expressive_c=clon`
-- `english_expressive_n=clon`
-- `male_narration_n=clon`
+- `English_expressive_narrator` (default — confirmed working)
+- `Male_Narrator` — may not be available on all API plans
+- `Female_Narrator` — may not be available on all API plans
+- `english_expressive_c=clon` — may not be available on all API plans
+- `english_expressive_n=clon` — may not be available on all API plans
+- `male_narration_n=clon` — may not be available on all API plans
+
+> Only `English_expressive_narrator` is guaranteed to work. Other voice IDs may return "voice id not exist" depending on your plan.
 
 ## Available Aspect Ratios for Image Generation
 
@@ -132,6 +163,18 @@ After updating settings, restart Claude Code to load the new MCP server.
 
 ### "MINIMAX_API_KEY is not set"
 Make sure the environment variable is exported before running Claude Code, or add it to your settings.json.
+
+### "minimax appears offline" in mcporter
+The server process may be running old code. Kill stale processes and try again:
+```bash
+pkill -f "minimax_mcp"
+```
+
+### "voice id not exist" for TTS
+Only `English_expressive_narrator` is confirmed working. Other voice IDs depend on your API plan.
+
+### understand_image times out in mcporter
+Use `MCPORTER_CALL_TIMEOUT=120000` to give the image download and encoding enough time.
 
 ### uvx not found
 Install uvx with: `pip install uv`

@@ -110,6 +110,63 @@ You can also use the Python server directly:
 python minimax_mcp.py
 ```
 
+## Hermes Integration (mcporter)
+
+The server works with Hermes's `mcporter` CLI tool, which auto-discovers configured MCP servers.
+
+### Hermes Setup via `~/.claude.json`
+
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python3",
+      "args": ["/absolute/path/to/minimax-mcp/minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Hermes Setup via OpenClaw config
+
+```json
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "python3",
+      "args": ["/absolute/path/to/minimax-mcp/minimax_mcp.py"],
+      "env": {
+        "MINIMAX_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Using with mcporter CLI
+
+```bash
+# List available tools
+mcporter list minimax --schema
+
+# Web search
+mcporter call minimax.minimax_web_search query="MiniMax AI API" --output json
+
+# Image understanding (uses /v1/coding_plan/vlm directly)
+mcporter call minimax.minimax_understand_image params='{"prompt": "What is in this image?", "image_source": "https://example.com/photo.jpg"}' --output json
+
+# Text-to-speech (use English_expressive_narrator for best compatibility)
+mcporter call minimax.minimax_text_to_speech params='{"text": "Hello world", "voice_id": "English_expressive_narrator"}' --output json
+
+# Image generation
+mcporter call minimax.minimax_generate_image params='{"prompt": "A sunset over the ocean", "aspect_ratio": "16:9"}' --output json
+```
+
+> **Note:** `minimax_understand_image` downloads and encodes images before sending to the API, which can take time. When calling via mcporter, set the timeout explicitly for this tool: `MCPORTER_CALL_TIMEOUT=120000 mcporter call minimax.minimax_understand_image ...`.
+
 ## Tools
 
 ### minimax_web_search
@@ -122,12 +179,14 @@ Search the web using MiniMax's search API.
 
 ### minimax_understand_image
 
-Analyze images using MiniMax's vision model.
+Analyze images using MiniMax's vision model. The tool downloads remote images or reads local files, converts them to base64, and sends them directly to MiniMax's `/v1/coding_plan/vlm` API — no subprocess required.
 
 **Parameters:**
 - `prompt` (string, required) — Question or instruction about the image
-- `image_source` (string, required) — URL or local file path to the image
+- `image_source` (string, required) — URL (http/https), local file path, or base64 data URL
 - `response_format` (string) — Output format: `markdown` (default) or `json`
+
+**Supported formats:** JPEG, PNG, WebP
 
 ### minimax_text_to_speech
 
@@ -139,12 +198,14 @@ Generate speech audio from text.
 - `speed` (float) — Speech speed 0.5-2.0 (default: 1.0)
 
 **Available Voices:**
-- `English_expressive_narrator` (default)
-- `Male_Narrator`
-- `Female_Narrator`
-- `english_expressive_c=clon`
-- `english_expressive_n=clon`
-- `male_narration_n=clon`
+- `English_expressive_narrator` (default — confirmed working)
+- `Male_Narrator` — may not be available on all API plans
+- `Female_Narrator` — may not be available on all API plans
+- `english_expressive_c=clon` — may not be available on all API plans
+- `english_expressive_n=clon` — may not be available on all API plans
+- `male_narration_n=clon` — may not be available on all API plans
+
+> **Note:** Only `English_expressive_narrator` is guaranteed to work. Other voice IDs may return "voice id not exist" depending on your MiniMax API plan. If you encounter this error, switch to the default voice.
 
 ### minimax_generate_image
 

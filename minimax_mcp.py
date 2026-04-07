@@ -457,89 +457,62 @@ async def minimax_understand_image(params: UnderstandImageInput) -> str:
         - Don't use when: You want to generate an image (use minimax_generate_image)
     """
     try:
-        import asyncio
-        import subprocess
-        import sys
+        import base64
 
         api_key = _get_api_key()
+        image_source = params.image_source
 
-        prompt_json = json.dumps(params.prompt)
-        image_json = json.dumps(params.image_source)
+        # Inline image processing — do NOT extract to a helper function, as FastMCP
+        # auto-registers any module-level function with type-annotated parameters,
+        # which would break the tool call arguments.
+        if image_source.startswith("data:"):
+            processed_image = image_source
+        else:
+            if image_source.startswith("@"):
+                image_source = image_source[1:]
 
-        rpc_request = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": "understand_image",
-                "arguments": {"prompt": params.prompt, "image_source": params.image_source}
-            },
-            "id": 1
+            if image_source.startswith(("http://", "https://")):
+                resp = httpx.get(image_source, timeout=30.0)
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "").lower()
+                fmt = "png" if "png" in content_type else ("webp" if "webp" in content_type else "jpeg")
+                data_b64 = base64.b64encode(resp.content).decode("utf-8")
+                processed_image = f"data:image/{fmt};base64,{data_b64}"
+            else:
+                if not os.path.exists(image_source):
+                    raise ValueError(f"Image file not found: {image_source}")
+                with open(image_source, "rb") as f:
+                    data = f.read()
+                fmt = "png" if image_source.lower().endswith(".png") else ("webp" if image_source.lower().endswith(".webp") else "jpeg")
+                data_b64 = base64.b64encode(data).decode("utf-8")
+                processed_image = f"data:image/{fmt};base64,{data_b64}"
+
+        payload = {
+            "prompt": params.prompt,
+            "image_url": processed_image
         }
 
-        initialize_request = {
-            "jsonrpc": "2.0",
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "minimax_mcp", "version": "1.0"}
-            },
-            "id": 0
-        }
-
-        # Pass API key and host to subprocess so minimax-coding-plan-mcp can authenticate
-        env = dict(os.environ)
-        env["MINIMAX_API_KEY"] = api_key
-        env["MINIMAX_API_HOST"] = API_HOST
-        process = await asyncio.create_subprocess_exec(
-            "uvx", "minimax-coding-plan-mcp",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env
-        )
-
-        init_data = json.dumps(initialize_request) + "\n"
-        process.stdin.write(init_data.encode())
-        await process.stdin.drain()
-        await asyncio.sleep(1)
-
-        req_data = json.dumps(rpc_request) + "\n"
-        process.stdin.write(req_data.encode())
-        await process.stdin.drain()
-        await asyncio.sleep(5)
-
-        try:
-            stdout_data, stderr_data = await asyncio.wait_for(
-                process.communicate(),
-                timeout=2.0
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            response = await client.post(
+                f"{API_HOST}/v1/coding_plan/vlm",
+                headers=headers,
+                json=payload
             )
-        except asyncio.TimeoutError:
-            process.kill()
-            stdout_data, _ = await process.communicate()
+            response.raise_for_status()
+            result = response.json()
 
-        output = stdout_data.decode()
-
-        analysis_text = ""
-        for line in output.strip().split("\n"):
-            if not line.strip():
-                continue
-            try:
-                resp = json.loads(line)
-                if "result" in resp and "content" in resp["result"]:
-                    for item in resp["result"]["content"]:
-                        if item.get("type") == "text":
-                            analysis_text = item["text"]
-                            break
-            except json.JSONDecodeError:
-                continue
+        content = result.get("content", "")
+        if not content:
+            raise ValueError("No content returned from VLM API")
 
         if params.response_format == ResponseFormat.JSON:
-            return json.dumps({"analysis": analysis_text, "prompt": params.prompt}, indent=2)
+            return json.dumps({"analysis": content, "prompt": params.prompt}, indent=2)
         else:
-            if analysis_text:
-                return f"# Image Analysis\n\n**Prompt:** {params.prompt}\n\n**Analysis:**\n{analysis_text}"
-            return "No analysis could be generated for this image."
+            return f"# Image Analysis\n\n**Prompt:** {params.prompt}\n\n**Analysis:**\n{content}"
 
     except Exception as e:
         return _handle_api_error(e, "Image understanding")
